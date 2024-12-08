@@ -1,59 +1,51 @@
-const express = require("express");
-const axios = require("axios");
-const cheerio = require("cheerio");
-
+const express = require('express');
+const axios = require('axios');
+const cheerio = require('cheerio');
 const app = express();
-const PORT = process.env.PORT || 3000;
 
-// Define the URL to scrape
-const url = "https://www.hirunews.lk/";
+const PORT = 3000; // Local testing port
 
-app.use((req, res, next) => {
-  // Enable CORS
-  res.header("Access-Control-Allow-Origin", "*");
-  next();
-});
-
-app.get("/news", async (req, res) => {
+// Main route
+app.get('/news', async (req, res) => {
   try {
-    // Fetch the website's HTML
-    const response = await axios.get(url);
+    const newsArticles = [];
+    const baseUrl = 'https://www.hirunews.lk/';
 
-    if (response.status === 200) {
-      const $ = cheerio.load(response.data); // Load HTML into Cheerio
-      const newsArticles = [];
+    // Fetch the HTML from Hiru News
+    const { data: html } = await axios.get(baseUrl);
 
-      // Extract news details
-      $('div.news-block').each((i, el) => {
-        const title = $(el).find('h2').text().trim(); // Title
-        const link = $(el).find('a').attr('href'); // Link
-        const image = $(el).find('img').attr('src'); // Image URL
+    // Load the HTML into Cheerio
+    const $ = cheerio.load(html);
 
-        if (title && link) {
-          newsArticles.push({
-            title,
-            url: link.startsWith("http") ? link : `https://www.hirunews.lk${link}`,
-            image: image ? (image.startsWith("http") ? image : `https://www.hirunews.lk${image}`) : null,
-          });
-        }
-      });
+    // Scrape news articles
+    $('.latest-news-block').each((i, el) => {
+      const title = $(el).find('a').text().trim(); // Title
+      const link = $(el).find('a').attr('href'); // Link
+      const image = $(el).find('img').attr('src'); // Image
 
-      // Respond with the extracted news data
-      if (newsArticles.length > 0) {
-        res.json(newsArticles);
-      } else {
-        res.json({ message: "No news articles found." });
+      if (title && link) {
+        newsArticles.push({
+          title,
+          url: link.startsWith('http') ? link : `${baseUrl}${link}`,
+          image: image ? (image.startsWith('http') ? image : `${baseUrl}${image}`) : null,
+        });
       }
-    } else {
-      res.status(500).json({ error: "Failed to fetch the website." });
+    });
+
+    // Check if articles are found
+    if (newsArticles.length === 0) {
+      return res.status(404).json({ message: 'No news articles found.' });
     }
+
+    // Respond with scraped articles
+    res.json(newsArticles);
   } catch (error) {
-    console.error("Error during scraping:", error.message);
-    res.status(500).json({ error: "Internal Server Error." });
+    console.error('Error fetching news:', error.message);
+    res.status(500).json({ message: 'Failed to fetch news articles.' });
   }
 });
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
